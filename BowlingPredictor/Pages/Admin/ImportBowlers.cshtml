@@ -1,0 +1,23 @@
+﻿@page
+@model ImportBowlersModel
+@{
+    ViewData["Title"] = "Import Bowlers";
+}
+
+<h2>Import Bowlers (Excel)</h2>
+
+<form method="post" enctype="multipart/form-data">
+    <div>
+        <label>League Id</label>
+        <input type="number" name="LeagueId" value="1" />
+    </div>
+    <div>
+        <input type="file" name="File" accept=".xlsx,.xls" />
+    </div>
+    <button type="submit">Upload</button>
+</form>
+
+@if (Model.ResultMessage is not null)
+{
+    <pre>@Model.ResultMessage</pre>
+}

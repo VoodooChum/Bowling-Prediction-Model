@@ -1,0 +1,24 @@
+﻿@page
+@model TeamsPageModel
+
+<h2>@Model.League.Name — Teams & Bowlers</h2>
+
+@foreach (var team in Model.Teams.OrderBy(t => t.Number))
+{
+    <h3>#@team.Number — @team.Name</h3>
+    <ul>
+        @foreach (var b in team.Bowlers.OrderBy(b => b.FullName))
+        {
+            <li>@b.FullName @(b.IsSub ? "(Sub)" : "")</li>
+        }
+    </ul>
+}
+
+<h2>Roving Subs (Team# = 0)</h2>
+<ul>
+    @foreach (var sub in Model.Subs.OrderBy(b => b.FullName))
+    {
+        <li>@sub.FullName</li>
+    }
+</ul>
+
