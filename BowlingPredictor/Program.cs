@@ -1,7 +1,7 @@
 using BowlingPredictor.Data;
-using BowlingPredictor.Data.Entities;
 using BowlingPredictor.Services;
 using Microsoft.EntityFrameworkCore;
+using BowlingPredictor.Services.Recaps;
 
 namespace BowlingPredictor
 {
@@ -17,6 +17,9 @@ namespace BowlingPredictor
                 opt.UseSqlServer(builder.Configuration.GetConnectionString("LeagueDb")));
 
             builder.Services.AddScoped<BowlerListImporter>();
+            builder.Services.AddScoped<IRecapParser, StubRecapParser>();
+            builder.Services.AddScoped<IRecapParser, BlsRecapParser>();
+            builder.Services.AddScoped<RecapIngestService>();
 
 
             var app = builder.Build();

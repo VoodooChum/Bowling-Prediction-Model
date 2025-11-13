@@ -1,0 +1,40 @@
+﻿@page
+@model ImportRecapsModel
+@{
+    ViewData["Title"] = "Import Weekly Recaps";
+}
+
+<h2>Import Weekly Recaps</h2>
+
+<form method="post" enctype="multipart/form-data">
+    <div>
+        <label>League Id</label>
+        <input type="number" asp-for="LeagueId" />
+    </div>
+    <div>
+        <label>Select recap PDF(s)</label>
+        <input type="file" asp-for="Files" multiple accept=".pdf" />
+    </div>
+    <button type="submit">Upload</button>
+</form>
+
+@if (Model.Results?.Any() == true)
+{
+    <h3>Results</h3>
+    <ul>
+        @foreach (var r in Model.Results)
+        {
+            <li>
+                <strong>@r.FileName</strong>:
+                @if (r.Skipped)
+                {
+                    <span>Skipped — @r.Message</span>
+                }
+                else
+                {
+                    <span>Ingested — Matches: @r.MatchesCreated, Games: @r.GamesCreated, Scores: @r.ScoresCreated</span>
+                }
+            </li>
+        }
+    </ul>
+}
