@@ -1,6 +1,7 @@
 ﻿using BowlingPredictor.Data;
 using BowlingPredictor.Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using System.Linq; // already added earlier
 
 namespace BowlingPredictor.Services.Recaps
 {
@@ -46,16 +47,38 @@ namespace BowlingPredictor.Services.Recaps
                 .Where(t => t.LeagueId == leagueId)
                 .ToDictionaryAsync(t => t.Number, t => t, ct);
 
+            static string NormalizeTeamName(string name)
+                => name.Trim().ToLowerInvariant();
+
             Team GetTeamOrThrow(int teamNumber, string recapName)
             {
-                if (!teamByNumber.TryGetValue(teamNumber, out var team))
-                {
-                    throw new InvalidOperationException(
-                        $"Team number {teamNumber} ('{recapName}') was not found in league {leagueId}. " +
-                        $"Check that the bowler list import created a team with Number={teamNumber}.");
-                }
-                return team;
+                // Prefer a valid parsed team number
+                if (teamNumber != 0 && teamByNumber.TryGetValue(teamNumber, out var byNumber))
+                    return byNumber;
+
+                // Fallback: try matching by normalized name
+                var norm = NormalizeTeamName(recapName);
+                var byName = teamByNumber.Values
+                    .FirstOrDefault(t => NormalizeTeamName(t.Name) == norm);
+
+                if (byName != null)
+                    return byName;
+
+                throw new InvalidOperationException(
+                    $"Team '{recapName}' (parsed number {teamNumber}) was not found in league {leagueId}. " +
+                    $"Check that the bowler list import has a team with this name/number."
+                );
             }
+
+            // 2b) Load existing match keys for this league+week to avoid duplicates
+            var existingKeys = await _db.Matches
+                .Where(m => m.LeagueId == leagueId && m.WeekNo == weekNo)
+                .Select(m => new { m.TeamAId, m.TeamBId })
+                .ToListAsync(ct);
+
+            var matchKeySet = new HashSet<(int TeamAId, int TeamBId)>(
+                existingKeys.Select(x => (x.TeamAId, x.TeamBId))
+            );
 
             // 3) Create Match rows
             int matchesCreated = 0;
@@ -64,6 +87,16 @@ namespace BowlingPredictor.Services.Recaps
             {
                 var teamA = GetTeamOrThrow(pm.TeamANumber, pm.TeamAName);
                 var teamB = GetTeamOrThrow(pm.TeamBNumber, pm.TeamBName);
+
+                var key = (teamA.TeamId, teamB.TeamId);
+
+                // NEW: skip duplicate pairs for this league/week
+                if (!matchKeySet.Add(key))
+                {
+                    // optional: log/debug here if you want
+                    // Console.WriteLine($"[DBG] Skipping duplicate match for week {weekNo}: {teamA.Name} vs {teamB.Name}");
+                    continue;
+                }
 
                 var match = new Match
                 {
