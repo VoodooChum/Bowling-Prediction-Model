@@ -1,0 +1,24 @@
+﻿@page
+@model WeeksPageModel
+
+<h2>@Model.LeagueName — Recap Weeks</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Week #</th>
+            <th>Date</th>
+            <th>Matches</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var w in Model.Weeks)
+        {
+            <tr>
+                <td>@w.WeekNo</td>
+                <td>@w.Date.ToShortDateString()</td>
+                <td>@w.MatchCount</td>
+            </tr>
+        }
+    </tbody>
+</table>

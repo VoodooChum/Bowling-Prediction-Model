@@ -7,19 +7,23 @@ public record ParsedRecap(
 );
 
 public record ParsedMatch(
-    string LaneLabel,      // e.g. "Lane 1-2" or "1-2"
+    int LaneA,
+    int LaneB,
+    int TeamANumber,
+    int TeamBNumber,
     string TeamAName,
     string TeamBName,
-    List<ParsedGame> Games // usually 3 games
+    List<ParsedGame> Games
 );
 
 public record ParsedGame(
-    int GameNo,            // 1, 2, 3
+    int GameNo,                      // 1..3
     List<ParsedBowlerGame> BowlerGames
 );
 
 public record ParsedBowlerGame(
     string BowlerName,
     string TeamName,
-    int GameScore
+    int GameNo,
+    int Scratch
 );

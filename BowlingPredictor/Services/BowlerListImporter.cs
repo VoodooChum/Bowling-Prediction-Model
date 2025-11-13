@@ -19,9 +19,14 @@ public class BowlerListImporter
         using var wb = new XLWorkbook(excelStream);
         var ws = wb.Worksheets.First(); // assuming first sheet
 
-        // Map headers → column indexes
         var headerRow = ws.FirstRowUsed();
-        var headers = headerRow.Cells().ToDictionary(c => c.GetString().Trim(), c => c.Address.ColumnNumber);
+        if (headerRow == null)
+            throw new InvalidOperationException("The bowler list sheet is empty or has no used rows.");
+
+        var headers = headerRow.Cells().ToDictionary(
+            c => c.GetString().Trim(),
+            c => c.Address.ColumnNumber
+        );
 
         int Col(string name) => headers.TryGetValue(name, out var idx)
             ? idx

@@ -1,31 +1,51 @@
-using BowlingPredictor.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using BowlingPredictor.Services;
 
-public class ImportBowlersModel : PageModel
+namespace BowlingPredictor.Pages.Admin
 {
-    private readonly BowlerListImporter _importer;
-    public string? ResultMessage { get; set; }
-
-    public ImportBowlersModel(BowlerListImporter importer) => _importer = importer;
-
-    [BindProperty] public int LeagueId { get; set; } = 1;
-    [BindProperty] public IFormFile? File { get; set; }
-
-    public void OnGet() { }
-
-    public async Task<IActionResult> OnPostAsync()
+    public class ImportBowlersModel : PageModel
     {
-        if (File is null || File.Length == 0)
+        private readonly BowlerListImporter _importer;
+
+        public ImportBowlersModel(BowlerListImporter importer)
         {
-            ResultMessage = "No file uploaded.";
+            _importer = importer;
+        }
+
+        // Status message to show in the UI
+        public string? ResultMessage { get; set; }
+
+        // League selection (default Friday Night = 1)
+        [BindProperty]
+        public int LeagueId { get; set; } = 1;
+
+        // This is where the file is bound from the form
+        [BindProperty]
+        public IFormFile? Upload { get; set; }
+
+        public void OnGet()
+        {
+        }
+
+        // PUT THE METHOD HERE
+        public async Task<IActionResult> OnPostAsync()
+        {
+            if (Upload is null || Upload.Length == 0)
+            {
+                ResultMessage = "No file uploaded.";
+                return Page();
+            }
+
+            using var stream = Upload.OpenReadStream();
+            var result = await _importer.ImportAsync(stream, LeagueId);
+
+            ResultMessage =
+                $"Teams created: {result.TeamsCreated}, updated: {result.TeamsUpdated}. " +
+                $"Bowlers created: {result.BowlersCreated}, updated: {result.BowlersUpdated}.";
+
             return Page();
         }
 
-        using var stream = File.OpenReadStream();
-        var result = await _importer.ImportAsync(stream, LeagueId);
-        ResultMessage = $"Teams: +{result.TeamsCreated}/~{result.TeamsUpdated}, " +
-                        $"Bowlers: +{result.BowlersCreated}/~{result.BowlersUpdated}";
-        return Page();
     }
 }

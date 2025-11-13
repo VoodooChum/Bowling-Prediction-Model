@@ -17,7 +17,6 @@ namespace BowlingPredictor
                 opt.UseSqlServer(builder.Configuration.GetConnectionString("LeagueDb")));
 
             builder.Services.AddScoped<BowlerListImporter>();
-            builder.Services.AddScoped<IRecapParser, StubRecapParser>();
             builder.Services.AddScoped<IRecapParser, BlsRecapParser>();
             builder.Services.AddScoped<RecapIngestService>();
 
