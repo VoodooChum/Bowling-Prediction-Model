@@ -47,8 +47,20 @@ namespace BowlingPredictor.Services.Recaps
                 .Where(t => t.LeagueId == leagueId)
                 .ToDictionaryAsync(t => t.Number, t => t, ct);
 
+            // 2a) Load all bowlers for this league, keyed by normalized name for quick lookup
+            var bowlersByNormalizedName = await _db.Bowlers
+                .Where(b => b.LeagueId == leagueId)
+                .ToDictionaryAsync(
+                    b => NormalizeString(b.FullName),
+                    b => b,
+                    ct
+                );
+
+            static string NormalizeString(string s)
+                => s.Trim().ToLowerInvariant();
+
             static string NormalizeTeamName(string name)
-                => name.Trim().ToLowerInvariant();
+                => NormalizeString(name);
 
             Team GetTeamOrThrow(int teamNumber, string recapName)
             {
@@ -70,6 +82,23 @@ namespace BowlingPredictor.Services.Recaps
                 );
             }
 
+            Bowler? TryGetBowler(string bowlerName, int teamId)
+            {
+                var normalized = NormalizeString(bowlerName);
+
+                // Try exact normalized match
+                if (bowlersByNormalizedName.TryGetValue(normalized, out var bowler))
+                {
+                    return bowler;
+                }
+
+                // Optional: log when a bowler is not found
+                Console.WriteLine(
+                    $"[WRN] Bowler '{bowlerName}' (normalized: '{normalized}') not found in league {leagueId}. Skipping score entry."
+                );
+                return null;
+            }
+
             // 2b) Load existing match keys for this league+week to avoid duplicates
             var existingKeys = await _db.Matches
                 .Where(m => m.LeagueId == leagueId && m.WeekNo == weekNo)
@@ -80,8 +109,9 @@ namespace BowlingPredictor.Services.Recaps
                 existingKeys.Select(x => (x.TeamAId, x.TeamBId))
             );
 
-            // 3) Create Match rows
+            // 3) Create Match rows and track them for game creation
             int matchesCreated = 0;
+            var createdMatchPairs = new List<(Match Match, ParsedMatch ParsedMatch)>();
 
             foreach (var pm in parsed.Matches)
             {
@@ -90,11 +120,9 @@ namespace BowlingPredictor.Services.Recaps
 
                 var key = (teamA.TeamId, teamB.TeamId);
 
-                // NEW: skip duplicate pairs for this league/week
+                // Skip duplicate pairs for this league/week
                 if (!matchKeySet.Add(key))
                 {
-                    // optional: log/debug here if you want
-                    // Console.WriteLine($"[DBG] Skipping duplicate match for week {weekNo}: {teamA.Name} vs {teamB.Name}");
                     continue;
                 }
 
@@ -109,7 +137,59 @@ namespace BowlingPredictor.Services.Recaps
                 };
 
                 _db.Matches.Add(match);
+                createdMatchPairs.Add((match, pm));
                 matchesCreated++;
+            }
+
+            // Save matches first so they have IDs
+            await _db.SaveChangesAsync(ct);
+
+            // 4) Create Games and GameScores for each created match
+            int gamesCreated = 0;
+            int scoresCreated = 0;
+
+            foreach (var (match, parsedMatch) in createdMatchPairs)
+            {
+                // Load teams from the match
+                var teamA = teamByNumber.Values.First(t => t.TeamId == match.TeamAId);
+                var teamB = teamByNumber.Values.First(t => t.TeamId == match.TeamBId);
+
+                foreach (var pg in parsedMatch.Games)
+                {
+                    var game = new Game
+                    {
+                        MatchId = match.MatchId,
+                        GameNo = pg.GameNo
+                    };
+
+                    _db.Games.Add(game);
+                    gamesCreated++;
+
+                    // Create GameScore entries for each bowler in this game
+                    foreach (var pbg in pg.BowlerGames)
+                    {
+                        var bowler = TryGetBowler(pbg.BowlerName,
+                            pbg.TeamName == teamA.Name ? teamA.TeamId : teamB.TeamId);
+
+                        if (bowler is null)
+                        {
+                            // Bowler not found, skip
+                            continue;
+                        }
+
+                        var gameScore = new GameScore
+                        {
+                            Game = game,  // Use relationship instead of explicit GameId
+                            BowlerId = bowler.BowlerId,
+                            TeamId = bowler.TeamId ?? (pbg.TeamName == teamA.Name ? teamA.TeamId : teamB.TeamId),
+                            Scratch = pbg.Scratch,
+                            IsSub = bowler.IsSub
+                        };
+
+                        _db.GameScores.Add(gameScore);
+                        scoresCreated++;
+                    }
+                }
             }
 
             await _db.SaveChangesAsync(ct);
@@ -118,8 +198,8 @@ namespace BowlingPredictor.Services.Recaps
                 Skipped: false,
                 Reason: null,
                 MatchesCreated: matchesCreated,
-                GamesCreated: 0,
-                ScoresCreated: 0
+                GamesCreated: gamesCreated,
+                ScoresCreated: scoresCreated
             );
         }
 

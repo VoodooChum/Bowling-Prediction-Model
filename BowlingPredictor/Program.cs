@@ -28,6 +28,9 @@ namespace BowlingPredictor
             {
                 var db = scope.ServiceProvider.GetRequiredService<LeagueDbContext>();
 
+                // Apply any pending migrations
+                await db.Database.MigrateAsync();
+
                 await DbSeeder.SeedAsync(db);
 
                 // List all leagues

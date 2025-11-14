@@ -18,6 +18,10 @@ public record ParsedMatch(
 
 public record ParsedGame(
     int GameNo,                      // 1..3
+    int TeamAScratch,                // sum of Team A bowler scratch for this game
+    int TeamAHandicap,               // Team A handicap applied to this game
+    int TeamBScratch,                // sum of Team B bowler scratch for this game
+    int TeamBHandicap,               // Team B handicap applied to this game
     List<ParsedBowlerGame> BowlerGames
 );
 
