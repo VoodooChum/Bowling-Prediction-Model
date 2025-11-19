@@ -7,9 +7,14 @@
 <h2>Import Weekly Recaps</h2>
 
 <form method="post" enctype="multipart/form-data">
-    <div>
-        <label>League Id</label>
-        <input type="number" asp-for="LeagueId" />
+    <div class="mb-3">
+        <label for="LeagueId" class="form-label">League</label>
+        <select id="LeagueId" name="LeagueId" class="form-select" asp-for="LeagueId">
+            @foreach (var league in Model.AvailableLeagues)
+            {
+                <option value="@league.LeagueId">@league.Name</option>
+            }
+        </select>
     </div>
     <div>
         <label>Select recap PDF(s)</label>

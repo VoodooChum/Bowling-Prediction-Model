@@ -267,51 +267,76 @@ public class BlsRecapParser : IRecapParser
     {
         var bowlers = new List<TeamBowler>();
 
-        var lines = segment.Split(
-            new[] { '\r', '\n' },
-            StringSplitOptions.RemoveEmptyEntries
+        // The PDF text is concatenated with no line breaks, so we need to parse it differently.
+        // Format: "...NameAvgHDCP-1--2--3-TotalTotalBowlerName1bk###0###...BowlerName2bk###0###...====================ScratchTotal..."
+
+        // Find the bowler section: starts after "NameAvgHDCP" and ends before "===================="
+        var headerMatch = Regex.Match(segment, @"NameAvgHDCP", RegexOptions.IgnoreCase);
+        var endMatch = Regex.Match(segment, @"={10,}");
+
+        if (!headerMatch.Success || !endMatch.Success)
+        {
+            Console.WriteLine($"[DBG] Lane {lane} '{teamName}': Could not find bowler section boundaries.");
+            return (bowlers, 0, 0, 0);
+        }
+
+        var bowlerSectionStart = headerMatch.Index + headerMatch.Length;
+        var bowlerSectionEnd = endMatch.Index;
+
+        // The segment contains data for TWO teams side-by-side (left and right columns)
+        // Find both "TotalTotal" sequences to determine team boundaries
+        var allTotalTotalMatches = Regex.Matches(segment, @"TotalTotal", RegexOptions.IgnoreCase);
+
+        if (allTotalTotalMatches.Count >= 2)
+        {
+            // There are two teams - extract only the FIRST team's section
+            // From: first NameAvgHDCP
+            // To: first TotalTotal (exclusive)
+            var firstTotalTotalMatch = allTotalTotalMatches[0];
+            bowlerSectionEnd = firstTotalTotalMatch.Index;
+        }
+        else if (allTotalTotalMatches.Count == 1)
+        {
+            // Only one team in this segment
+            bowlerSectionEnd = allTotalTotalMatches[0].Index;
+        }
+
+        var bowlerSection = segment.Substring(bowlerSectionStart, Math.Max(0, bowlerSectionEnd - bowlerSectionStart));
+
+        Console.WriteLine($"[DBG] Lane {lane} '{teamName}': Bowler section found, length {bowlerSection.Length}");
+
+        // Parse bowlers from concatenated text using "bk" as the key boundary marker
+        // Format: [Name]bk[exactly 3 digit ID][2 digit code/avg][3-digit game 1][3-digit game 2][3-digit game 3]
+        // The "bk" prefix always marks the start of a bowler record
+
+        var bowlerPattern = new Regex(
+            @"([A-Z][A-Za-z' .-]*?)bk(\d{3})(\d{2})(\d{3})(\d{3})(\d{3})",
+            RegexOptions.Compiled
         );
 
-        var inBowlerSection = false;
-
-        foreach (var rawLine in lines)
+        foreach (Match m in bowlerPattern.Matches(bowlerSection))
         {
-            var line = rawLine.TrimEnd();
+            var name = m.Groups[1].Value.Trim();
 
-            if (!inBowlerSection)
+            // Groups: 1=name, 2=bk-id, 3=code (2 digits), 4=game1, 5=game2, 6=game3
+            if (int.TryParse(m.Groups[4].Value, out var game1) &&
+                int.TryParse(m.Groups[5].Value, out var game2) &&
+                int.TryParse(m.Groups[6].Value, out var game3))
             {
-                if (line.Contains("Name Avg HDCP", StringComparison.OrdinalIgnoreCase))
+                // Sanity check: bowling scores should be reasonable (0-300)
+                if (game1 > 300 || game2 > 300 || game3 > 300)
                 {
-                    inBowlerSection = true;
+                    Console.WriteLine($"[DBG] Lane {lane} '{teamName}': REJECTED bowler '{name}': scores {game1}, {game2}, {game3} are out of range (>300)");
+                    continue;
                 }
-                continue;
+
+                bowlers.Add(new TeamBowler(name, game1, game2, game3));
+                Console.WriteLine($"[DBG] Lane {lane} '{teamName}': Found bowler '{name}': G1={game1}, G2={game2}, G3={game3}");
             }
-
-            // End of bowler section on separators / totals
-            if (line.Contains("====") ||
-                line.StartsWith("Scratch Total", StringComparison.OrdinalIgnoreCase) ||
-                line.StartsWith("Handicap", StringComparison.OrdinalIgnoreCase) ||
-                line.StartsWith("Total", StringComparison.OrdinalIgnoreCase))
-            {
-                // Don't break on Handicap here, we parse it from full segment below.
-                if (!line.StartsWith("Handicap", StringComparison.OrdinalIgnoreCase))
-                    break;
-            }
-
-            var m = BowlerLineRegex.Match(line);
-            if (!m.Success)
-                continue;
-
-            var name = m.Groups["name"].Value.Trim();
-            var game1 = int.Parse(m.Groups[2].Value);
-            var game2 = int.Parse(m.Groups[3].Value);
-            var game3 = int.Parse(m.Groups[4].Value);
-
-            bowlers.Add(new TeamBowler(name, game1, game2, game3));
         }
 
         Console.WriteLine(
-            $"[DBG] Lane {lane} '{teamName}': parsed {bowlers.Count} bowler lines."
+            $"[DBG] Lane {lane} '{teamName}': parsed {bowlers.Count} bowlers."
         );
 
         // Parse handicap line from the full segment

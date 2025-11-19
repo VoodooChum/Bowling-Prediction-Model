@@ -2,6 +2,7 @@ using BowlingPredictor.Data;
 using BowlingPredictor.Services;
 using Microsoft.EntityFrameworkCore;
 using BowlingPredictor.Services.Recaps;
+using Serilog;
 
 namespace BowlingPredictor
 {
@@ -11,6 +12,19 @@ namespace BowlingPredictor
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            // --- Configure Serilog ---
+            builder.Host.UseSerilog((context, configuration) =>
+            {
+                configuration
+                    .MinimumLevel.Information()
+                    .Enrich.FromLogContext()
+                    .WriteTo.Console()
+                    .WriteTo.File(
+                        path: "logs/bowling-predictor-.txt",
+                        rollingInterval: RollingInterval.Day,
+                        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}");
+            });
+
             // --- Configure services ---
             builder.Services.AddRazorPages();
             builder.Services.AddDbContext<LeagueDbContext>(opt =>
@@ -19,6 +33,7 @@ namespace BowlingPredictor
             builder.Services.AddScoped<BowlerListImporter>();
             builder.Services.AddScoped<IRecapParser, BlsRecapParser>();
             builder.Services.AddScoped<RecapIngestService>();
+            builder.Services.AddScoped<RecapValidationService>();
 
 
             var app = builder.Build();

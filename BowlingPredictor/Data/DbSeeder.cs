@@ -16,16 +16,7 @@ public static class DbSeeder
             await db.SaveChangesAsync();
         }
 
-        // Ensure Teams exist for that league
-        bool teamsExist = await db.Teams.AnyAsync(t => t.LeagueId == league.LeagueId);
-        if (!teamsExist)
-        {
-            db.Teams.AddRange(
-                new Team { LeagueId = league.LeagueId, Name = "Ain't that Nice", Number = 1 },
-                new Team { LeagueId = league.LeagueId, Name = "Westbank Lawnmower", Number = 2 }
-                // add more if you want now
-            );
-            await db.SaveChangesAsync();
-        }
+        // NOTE: Teams are NOT auto-seeded to avoid duplicate issues.
+        // Teams should be created through the import process or manually via the admin interface.
     }
 }

@@ -7,15 +7,20 @@
 <h2>Import Bowlers (Excel)</h2>
 
 <form method="post" enctype="multipart/form-data">
-    <div>
-        <label>League Id</label>
-        <input type="number" name="LeagueId" value="1" />
+    <div class="mb-3">
+        <label for="LeagueId" class="form-label">League</label>
+        <select id="LeagueId" name="LeagueId" class="form-select" asp-for="LeagueId">
+            @foreach (var league in Model.AvailableLeagues)
+            {
+                <option value="@league.LeagueId">@league.Name</option>
+            }
+        </select>
     </div>
-    <div>
-        <input type="file" asp-for="Upload" accept=".xlsx,.xls" />
-
+    <div class="mb-3">
+        <label for="Upload" class="form-label">Select Excel File</label>
+        <input type="file" id="Upload" class="form-control" asp-for="Upload" accept=".xlsx,.xls" required />
     </div>
-    <button type="submit">Upload</button>
+    <button type="submit" class="btn btn-primary">Upload</button>
 </form>
 
 @if (Model.ResultMessage is not null)

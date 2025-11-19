@@ -186,14 +186,29 @@ public class ImportBowlersModel : PageModel
 ### Completed
 - ✅ Database schema with comprehensive relationships
 - ✅ Bowler list import from Excel (BowlerListImporter)
-- ✅ PDF recap parsing for BLS format (BlsRecapParser)
-- ✅ Match/Game/GameScore entity creation from recap PDFs
-- ✅ All weeks properly ingested for matches
-- ✅ Week 1 matches verified and ingested
+- ✅ Match/Game entity creation from recap PDFs
 - ✅ Teams and bowlers basic roster management
+- ✅ Home page with navigation links to import pages
+- ✅ League dropdown selectors (Admin/ImportBowlers and Admin/ImportRecaps pages)
+- ✅ RecapValidationService for pre-flight validation
+- ✅ PDF text extraction and lane header parsing
 
-### In Progress / TODO
-- 🔄 Recap ingest completion — GameScore population from parsed data
+### In Progress / TODO (November 19, 2025)
+- 🔄 **PDF Bowler Parsing** — BlsRecapParser bowler data extraction from concatenated text
+  - **Status:** Diagnosed root cause — PDF text is concatenated with NO LINE BREAKS
+  - **Issue:** Each lane segment contains TWO teams' data side-by-side (left/right columns)
+  - **Current Fix:** Modified ParseTeamSegment() to extract only first team's bowlers (lines 286-304)
+  - **Next Steps:**
+    1. Test the fix to verify all 5 bowlers from each lane parse correctly
+    2. Verify GameScores are created with correct bowler/score mappings
+    3. Remove debug logging from BlsRecapParser (Console.WriteLine calls)
+  - **Root Cause Analysis:** PDF extraction produces concatenated string like:
+    ```
+    "Lane 11 - Ain't that Nice...NameAvgHDCP[Team 1 bowlers]TotalTotalNameAvgHDCP[Team 2 bowlers]TotalTotal===="
+    ```
+    The parser needs to stop at the FIRST "TotalTotal" to avoid capturing Team 2's data.
+
+- ⚠️ GameScore population — Currently 0 scores created (bowler parsing is the blocker)
 - ⚠️ BowlerSeasonAgg calculation — aggregate stats per bowler per season
 - ⚠️ ModelVersion population — training and storing prediction models
 - ⚠️ Match outcome predictions — UI and logic
@@ -216,7 +231,11 @@ public class ImportBowlersModel : PageModel
 
 ## Important Design Notes
 
-1. **PDF Parsing Reliability:** BlsRecapParser uses compiled Regex patterns for robustness. If PDF format changes, regex patterns may need updating.
+1. **PDF Text Extraction Challenges:** The BLS recap PDFs extracted via UglyToad.PdfPig produce concatenated text with NO LINE BREAKS. Each segment contains data for TWO teams in a side-by-side (columnar) layout:
+   - Format: `NameAvgHDCP[Team 1 bowlers: Name1bk###...Score1 Score2 Score3]TotalTotal[Team 2 bowlers:...]TotalTotal====`
+   - **Solution:** ParseTeamSegment() extracts only the FIRST team's data (from first "NameAvgHDCP" to first "TotalTotal")
+   - **Regex Pattern:** `([A-Z][A-Za-z' .-]*?)bk(\d{3})(\d{2})(\d{3})(\d{3})(\d{3})` matches: Name + "bk" + 3-digit ID + 2-digit code + three 3-digit scores
+   - **Validation:** Sanity check rejects scores > 300 (impossible in bowling)
 
 2. **Deduplication:** RecapIngestService prevents duplicate Match records by querying (LeagueId + Date) before creation.
 
